@@ -26,7 +26,12 @@ if (typeof TouchInput.isHovered !== "function") {
 
 // Tilemap.Layer alias used by some plugins to tweak rendering
 if (typeof Tilemap !== "undefined" && !Tilemap.Layer) {
-  Tilemap.Layer = PIXI.Container;
+  function TilemapLayer() {
+    PIXI.Container.call(this);
+  }
+  TilemapLayer.prototype = Object.create(PIXI.Container.prototype);
+  TilemapLayer.prototype.constructor = TilemapLayer;
+  Tilemap.Layer = TilemapLayer;
 }
 
 // Loading spinner helper for MZ-style plugins
