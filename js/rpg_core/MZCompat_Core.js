@@ -80,6 +80,18 @@ if (typeof Window !== "undefined") {
     });
   }
 
+  if (!Object.getOwnPropertyDescriptor(Window.prototype, "_contentsSprite")) {
+    Object.defineProperty(Window.prototype, "_contentsSprite", {
+      get: function () {
+        return this._windowContentsSprite;
+      },
+      set: function (value) {
+        this._windowContentsSprite = value;
+      },
+      configurable: true,
+    });
+  }
+
   if (!Object.getOwnPropertyDescriptor(Window.prototype, "_pauseSignSprite")) {
     Object.defineProperty(Window.prototype, "_pauseSignSprite", {
       get: function () {
