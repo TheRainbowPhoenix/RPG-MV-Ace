@@ -92,3 +92,41 @@ if (typeof Window !== "undefined") {
     });
   }
 }
+
+// Window client area and pause sprites used by MZ plugins
+if (typeof Window !== "undefined" && !Window.prototype._clientArea) {
+  Window.prototype._createClientArea = function () {
+    this._clientArea = new Sprite();
+    this._clientArea.filters = [new PIXI.filters.AlphaFilter()];
+    this._clientArea.filterArea = new Rectangle();
+    this._clientArea.move(this._padding, this._padding);
+    this.addChild(this._clientArea);
+  };
+
+  // Rebuild container parts to include client area before contents
+  Window.prototype._createAllParts = function () {
+    this._windowSpriteContainer = new PIXI.Container();
+    this._windowBackSprite = new Sprite();
+    this._windowCursorSprite = new Sprite();
+    this._windowFrameSprite = new Sprite();
+    this._windowContentsSprite = new Sprite();
+    this._downArrowSprite = new Sprite();
+    this._upArrowSprite = new Sprite();
+    this._windowPauseSignSprite = new Sprite();
+
+    this._windowBackSprite.bitmap = new Bitmap(1, 1);
+    this._windowBackSprite.alpha = 192 / 255;
+
+    this.addChild(this._windowSpriteContainer);
+    this._windowSpriteContainer.addChild(this._windowBackSprite);
+    this._windowSpriteContainer.addChild(this._windowFrameSprite);
+
+    this._createClientArea();
+    this._clientArea.addChild(this._windowCursorSprite);
+    this._clientArea.addChild(this._windowContentsSprite);
+
+    this.addChild(this._downArrowSprite);
+    this.addChild(this._upArrowSprite);
+    this.addChild(this._windowPauseSignSprite);
+  };
+}
