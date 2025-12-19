@@ -222,59 +222,57 @@
   // ---------------------------------------------------------------------------
   // Window client area + inner children (MZ style, MV-safe)
   if (typeof Window !== "undefined") {
-    Window.prototype._createClientArea = function () {
-      if (this._clientArea) return;
-      this._clientArea = new Sprite();
-      var alphaFilter =
-        PIXI.filters && PIXI.filters.AlphaFilter
-          ? new PIXI.filters.AlphaFilter()
-          : null;
-      this._clientArea.filters = alphaFilter ? [alphaFilter] : null;
-      this._clientArea.filterArea = alphaFilter ? new Rectangle() : null;
+    if (!Window.prototype._createClientArea) {
+      Window.prototype._createClientArea = function () {
+        if (this._clientArea) return;
+        this._clientArea = new Sprite();
+        var alphaFilter =
+          PIXI.filters && PIXI.filters.AlphaFilter
+            ? new PIXI.filters.AlphaFilter()
+            : null;
+        this._clientArea.filters = alphaFilter ? [alphaFilter] : null;
+        this._clientArea.filterArea = alphaFilter ? new Rectangle() : null;
 
-      var pad = this.padding != null ? this.padding : this._padding || 0;
-      this._clientArea.move(pad, pad);
-      this._innerChildren = this._innerChildren || [];
-      this.addChild(this._clientArea);
-    };
-
-    Window.prototype._updateClientArea = function () {
-      if (this._clientArea) {
         var pad = this.padding != null ? this.padding : this._padding || 0;
         this._clientArea.move(pad, pad);
-      }
-    };
+        this._innerChildren = this._innerChildren || [];
+        this.addChild(this._clientArea);
+      };
+    }
 
-    Window.prototype._updateFilterArea = function () {
-      if (this._clientArea && this._clientArea.filterArea) {
-        var pad = this.padding != null ? this.padding : this._padding || 0;
-        var w = this.width - pad * 2;
-        var h = this.height - pad * 2;
-        this._clientArea.filterArea.x = this.x + pad;
-        this._clientArea.filterArea.y = this.y + pad;
-        this._clientArea.filterArea.width = Math.max(0, w);
-        this._clientArea.filterArea.height = Math.max(0, h);
-      }
-    };
+    if (!Window.prototype._updateClientArea) {
+      Window.prototype._updateClientArea = function () {
+        if (this._clientArea) {
+          var pad = this.padding != null ? this.padding : this._padding || 0;
+          this._clientArea.move(pad, pad);
+        }
+      };
+    }
 
-    Window.prototype.addInnerChild = function (child) {
-      this._createClientArea();
-      this._innerChildren = this._innerChildren || [];
-      if (this._innerChildren.indexOf(child) === -1) {
-        this._innerChildren.push(child);
-      }
-      return this._clientArea.addChild(child);
-    };
+    if (!Window.prototype._updateFilterArea) {
+      Window.prototype._updateFilterArea = function () {
+        if (this._clientArea && this._clientArea.filterArea) {
+          var pad = this.padding != null ? this.padding : this._padding || 0;
+          var w = this.width - pad * 2;
+          var h = this.height - pad * 2;
+          this._clientArea.filterArea.x = this.x + pad;
+          this._clientArea.filterArea.y = this.y + pad;
+          this._clientArea.filterArea.width = Math.max(0, w);
+          this._clientArea.filterArea.height = Math.max(0, h);
+        }
+      };
+    }
 
-    var _Window_updateTransform = Window.prototype.updateTransform;
-    Window.prototype.updateTransform = function () {
-      if (this._updateClientArea) {
-        this._updateClientArea();
-      }
-      _Window_updateTransform.call(this);
-      if (this._updateFilterArea) {
-        this._updateFilterArea();
-      }
-    };
+    if (!Window.prototype.addInnerChild) {
+      Window.prototype.addInnerChild = function (child) {
+        this._createClientArea();
+        this._innerChildren = this._innerChildren || [];
+        if (this._innerChildren.indexOf(child) === -1) {
+          this._innerChildren.push(child);
+        }
+        return this._clientArea.addChild(child);
+      };
+    }
+
   }
 })();
