@@ -9,3 +9,16 @@
  * @author RyanBram based on works by Yoji Ojima & RPG Maker Community
  * @url https://github.com/RyanBram/RPG-MV-Ace
  */
+
+function aliasProp(proto, aliasName, targetName) {
+  if (Object.getOwnPropertyDescriptor(proto, aliasName)) return;
+  Object.defineProperty(proto, aliasName, {
+    get: function () {
+      return this[targetName];
+    },
+    set: function (v) {
+      this[targetName] = v;
+    },
+    configurable: true,
+  });
+}

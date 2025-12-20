@@ -24,9 +24,10 @@ Window.prototype.initialize = function () {
   this._openness = 255;
   this._animationCount = 0;
 
-  this._padding = 18;
+  this._padding = 18; // 12 on MZ
   this._margin = 4;
-  this._colorTone = [0, 0, 0];
+  this._colorTone = [0, 0, 0, 0]; // [MV] = [0, 0, 0]
+  this._innerChildren = [];
 
   this._windowSpriteContainer = null;
   this._windowBackSprite = null;
@@ -35,6 +36,16 @@ Window.prototype.initialize = function () {
   this._windowContentsSprite = null;
   this._windowArrowSprites = [];
   this._windowPauseSignSprite = null;
+  this._contentsBackSprite = null;
+  this._clientArea = null;
+
+  // Container + main sprites
+  aliasProp(Window.prototype, "_container", "_windowSpriteContainer");
+  aliasProp(Window.prototype, "_backSprite", "_windowBackSprite");
+  aliasProp(Window.prototype, "_frameSprite", "_windowFrameSprite");
+  aliasProp(Window.prototype, "_cursorSprite", "_windowCursorSprite");
+  aliasProp(Window.prototype, "_contentsSprite", "_windowContentsSprite");
+  aliasProp(Window.prototype, "_pauseSignSprite", "_windowPauseSignSprite");
 
   this._createAllParts();
 
@@ -53,6 +64,20 @@ Window.prototype.initialize = function () {
    * @type Boolean
    */
   this.active = true;
+
+  /**
+   * The visibility of the frame.
+   *
+   * @type boolean
+   */
+  this.frameVisible = true;
+
+  /**
+   * The visibility of the cursor.
+   *
+   * @type boolean
+   */
+  this.cursorVisible = true;
 
   /**
    * The visibility of the down scroll arrow.
@@ -110,6 +135,24 @@ Object.defineProperty(Window.prototype, "contents", {
   },
   set: function (value) {
     this._windowContentsSprite.bitmap = value;
+  },
+  configurable: true,
+});
+
+/**
+ * The bitmap used for the window contents background.
+ *
+ * @type Bitmap
+ * @name Window#contentsBack
+ */
+Object.defineProperty(Window.prototype, "contentsBack", {
+  get: function () {
+    return this._contentsBackSprite && this._contentsBackSprite.bitmap;
+  },
+  set: function (value) {
+    if (this._contentsBackSprite) {
+      this._contentsBackSprite.bitmap = value;
+    }
   },
   configurable: true,
 });
@@ -252,6 +295,87 @@ Object.defineProperty(Window.prototype, "openness", {
 });
 
 /**
+ * The width of the content area in pixels.
+ *
+ * @readonly
+ * @type number
+ * @name Window#innerWidth
+ */
+Object.defineProperty(Window.prototype, "innerWidth", {
+  get: function () {
+    return Math.max(0, this._width - this._padding * 2);
+  },
+  configurable: true,
+});
+
+/**
+ * The height of the content area in pixels.
+ *
+ * @readonly
+ * @type number
+ * @name Window#innerHeight
+ */
+Object.defineProperty(Window.prototype, "innerHeight", {
+  get: function () {
+    return Math.max(0, this._height - this._padding * 2);
+  },
+  configurable: true,
+});
+
+/**
+ * The rectangle of the content area.
+ *
+ * @readonly
+ * @type Rectangle
+ * @name Window#innerRect
+ */
+Object.defineProperty(Window.prototype, "innerRect", {
+  get: function () {
+    return new Rectangle(
+      this._padding,
+      this._padding,
+      this.innerWidth,
+      this.innerHeight
+    );
+  },
+  configurable: true,
+});
+
+/**
+ * Destroys the window.
+ */
+Window.prototype.destroy = function () {
+  const options = { children: true, texture: true };
+  // PIXI.Container.prototype.destroy.call(this, options);
+};
+
+if (!Object.getOwnPropertyDescriptor(Window.prototype, "_downArrowSprite")) {
+  Object.defineProperty(Window.prototype, "_downArrowSprite", {
+    get: function () {
+      return this._windowArrowSprites && this._windowArrowSprites[0];
+    },
+    set: function (v) {
+      this._windowArrowSprites = this._windowArrowSprites || [];
+      this._windowArrowSprites[0] = v;
+    },
+    configurable: true,
+  });
+}
+
+if (!Object.getOwnPropertyDescriptor(Window.prototype, "_upArrowSprite")) {
+  Object.defineProperty(Window.prototype, "_upArrowSprite", {
+    get: function () {
+      return this._windowArrowSprites && this._windowArrowSprites[1];
+    },
+    set: function (v) {
+      this._windowArrowSprites = this._windowArrowSprites || [];
+      this._windowArrowSprites[1] = v;
+    },
+    configurable: true,
+  });
+}
+
+/**
  * Updates the window for each frame.
  *
  * @method update
@@ -334,6 +458,31 @@ Window.prototype.setCursorRect = function (x, y, width, height) {
 };
 
 /**
+ * Moves the cursor position by the given amount (MZ compatibility).
+ *
+ * @param {Number} x
+ * @param {Number} y
+ */
+Window.prototype.moveCursorBy = function (x, y) {
+  this._cursorRect.x += x;
+  this._cursorRect.y += y;
+};
+
+/**
+ * Moves inner children by the given amount (MZ compatibility).
+ *
+ * @param {Number} x
+ * @param {Number} y
+ */
+Window.prototype.moveInnerChildrenBy = function (x, y) {
+  for (var i = 0; i < this._innerChildren.length; i++) {
+    var child = this._innerChildren[i];
+    child.x += x;
+    child.y += y;
+  }
+};
+
+/**
  * Changes the color of the background.
  *
  * @method setTone
@@ -344,7 +493,7 @@ Window.prototype.setCursorRect = function (x, y, width, height) {
 Window.prototype.setTone = function (r, g, b) {
   var tone = this._colorTone;
   if (r !== tone[0] || g !== tone[1] || b !== tone[2]) {
-    this._colorTone = [r, g, b];
+    this._colorTone = [r, g, b, tone[3] || 0];
     this._refreshBack();
   }
 };
@@ -362,15 +511,45 @@ Window.prototype.addChildToBack = function (child) {
 };
 
 /**
+ * Adds a child to the inner client area (MZ compatibility).
+ *
+ * @method addInnerChild
+ * @param {Object} child The child to add
+ * @return {Object} The child that was added
+ */
+Window.prototype.addInnerChild = function (child) {
+  if (this._innerChildren.indexOf(child) === -1) {
+    this._innerChildren.push(child);
+  }
+  return this._clientArea.addChild(child);
+};
+
+/**
  * @method updateTransform
  * @private
  */
 Window.prototype.updateTransform = function () {
+  this._updateClientArea();
+  this._updateFrame();
+  this._updateContentsBack();
   this._updateCursor();
+  this._updateContents();
   this._updateArrows();
   this._updatePauseSign();
-  this._updateContents();
   PIXI.Container.prototype.updateTransform.call(this);
+  this._updateFilterArea();
+};
+
+Window.prototype.drawShape = function (graphics) {
+  if (graphics) {
+    const width = this.width;
+    const height = (this.height * this._openness) / 255;
+    const x = this.x;
+    const y = this.y + (this.height - height) / 2;
+    graphics.beginFill(0xffffff);
+    graphics.drawRoundedRect(x, y, width, height, 0);
+    graphics.endFill();
+  }
 };
 
 /**
@@ -378,24 +557,125 @@ Window.prototype.updateTransform = function () {
  * @private
  */
 Window.prototype._createAllParts = function () {
+  this._createContainer();
+  this._createBackSprite();
+  this._createFrameSprite();
+  this._createClientArea();
+  this._createContentsBackSprite();
+  this._createCursorSprite();
+  this._createContentsSprite();
+  this._createArrowSprites();
+  this._createPauseSignSprite();
+};
+
+Window.prototype._createContainer = function () {
+  // MV internal
+  this._windowSpriteContainer = new PIXI.Container();
+  this.addChild(this._windowSpriteContainer);
+};
+
+Window.prototype._createBackSprite = function () {
+  // MV internal: simple Sprite with 1x1 bitmap, alpha 192/255
+  this._windowBackSprite = new Sprite();
+  this._windowBackSprite.bitmap = new Bitmap(1, 1);
+  this._windowBackSprite.alpha = 192 / 255;
+  this._windowSpriteContainer.addChild(this._windowBackSprite);
+};
+
+Window.prototype._createFrameSprite = function () {
+  // MV internal: single sprite (MV draws frame into bitmap elsewhere)
+  this._windowFrameSprite = new Sprite();
+  this._windowSpriteContainer.addChild(this._windowFrameSprite);
+};
+
+Window.prototype._createClientArea = function () {
+  this._clientArea = new Sprite();
+
+  // IMPORTANT: AlphaFilter clipping is optional.
+  // If you keep it, you MUST keep filterArea sized, otherwise contents can vanish.
+  const hasAlphaFilter = PIXI.filters && PIXI.filters.AlphaFilter;
+  if (hasAlphaFilter && false) {
+    // FIXME: alpha bug ??
+    this._clientArea.filters = [new PIXI.filters.AlphaFilter()];
+    this._clientArea.filterArea = new Rectangle();
+  } else {
+    this._clientArea.filters = null;
+    this._clientArea.filterArea = null;
+  }
+
+  // Use MV-safe padding value
+  const pad = this.padding != null ? this.padding : this._padding || 0;
+  this._clientArea.move(pad, pad);
+
+  this.addChild(this._clientArea);
+};
+
+Window.prototype._createContentsBackSprite = function () {
+  this._contentsBackSprite = new Sprite();
+  this._clientArea.addChild(this._contentsBackSprite);
+};
+
+Window.prototype._createCursorSprite = function () {
+  this._windowCursorSprite = new Sprite();
+  this._clientArea.addChild(this._windowCursorSprite);
+};
+
+Window.prototype._createContentsSprite = function () {
+  this._windowContentsSprite = new Sprite();
+  this._clientArea.addChild(this._windowContentsSprite);
+};
+
+Window.prototype._createArrowSprites = function () {
+  this._downArrowSprite = new Sprite();
+  this.addChild(this._downArrowSprite);
+
+  this._upArrowSprite = new Sprite();
+  this.addChild(this._upArrowSprite);
+};
+
+Window.prototype._createPauseSignSprite = function () {
+  this._windowPauseSignSprite = new Sprite();
+  this.addChild(this._windowPauseSignSprite);
+};
+
+Window.prototype.OLD_createAllParts = function () {
   this._windowSpriteContainer = new PIXI.Container();
   this._windowBackSprite = new Sprite();
   this._windowCursorSprite = new Sprite();
   this._windowFrameSprite = new Sprite();
   this._windowContentsSprite = new Sprite();
+  this._contentsBackSprite = new Sprite();
   this._downArrowSprite = new Sprite();
   this._upArrowSprite = new Sprite();
   this._windowPauseSignSprite = new Sprite();
   this._windowBackSprite.bitmap = new Bitmap(1, 1);
   this._windowBackSprite.alpha = 192 / 255;
+  this._clientArea = new Sprite();
+  var alphaFilter =
+    PIXI.filters && PIXI.filters.AlphaFilter
+      ? new PIXI.filters.AlphaFilter()
+      : null;
+  this._clientArea.filters = alphaFilter ? [alphaFilter] : null;
+  this._clientArea.filterArea = alphaFilter ? new Rectangle() : null;
+
   this.addChild(this._windowSpriteContainer);
   this._windowSpriteContainer.addChild(this._windowBackSprite);
   this._windowSpriteContainer.addChild(this._windowFrameSprite);
-  this.addChild(this._windowCursorSprite);
-  this.addChild(this._windowContentsSprite);
+  this.addChild(this._clientArea);
+  this._clientArea.addChild(this._contentsBackSprite);
+  this._clientArea.addChild(this._windowCursorSprite);
+  this._clientArea.addChild(this._windowContentsSprite);
   this.addChild(this._downArrowSprite);
   this.addChild(this._upArrowSprite);
   this.addChild(this._windowPauseSignSprite);
+
+  // MZ aliases for compatibility
+  // this._container = this._windowSpriteContainer;
+  // this._backSprite = this._windowBackSprite;
+  // this._frameSprite = this._windowFrameSprite;
+  // this._cursorSprite = this._windowCursorSprite;
+  // this._contentsSprite = this._windowContentsSprite;
+  // this._pauseSignSprite = this._windowPauseSignSprite;
 };
 
 /**
@@ -478,29 +758,39 @@ Window.prototype._refreshFrame = function () {
  * @method _refreshCursor
  * @private
  */
-Window.prototype._refreshCursor = function() {
-    var w = this._cursorRect.width;
-    var h = this._cursorRect.height;
-    var m = 4;
-    var bitmap = new Bitmap(w, h);
+Window.prototype._refreshCursor = function () {
+  var w = this._cursorRect.width;
+  var h = this._cursorRect.height;
+  var m = 4;
+  var bitmap = new Bitmap(w, h);
 
-    this._windowCursorSprite.bitmap = bitmap;
+  this._windowCursorSprite.bitmap = bitmap;
 
-    if (w > 0 && h > 0 && this._windowskin) {
-        var skin = this._windowskin;
-        var p = 96;
-        var q = 48;
-        bitmap.blt(skin, p+m, p+m, q-m*2, q-m*2, m, m, w-m*2, h-m*2);
-        bitmap.blt(skin, p+m, p+0, q-m*2, m, m, 0, w-m*2, m);
-        bitmap.blt(skin, p+m, p+q-m, q-m*2, m, m, h-m, w-m*2, m);
-        bitmap.blt(skin, p+0, p+m, m, q-m*2, 0, m, m, h-m*2);
-        bitmap.blt(skin, p+q-m, p+m, m, q-m*2, w-m, m, m, h-m*2);
-        bitmap.blt(skin, p+0, p+0, m, m, 0, 0, m, m);
-        bitmap.blt(skin, p+q-m, p+0, m, m, w-m, 0, m, m);
-        bitmap.blt(skin, p+0, p+q-m, m, m, 0, h-m, m, m);
-        bitmap.blt(skin, p+q-m, p+q-m, m, m, w-m, h-m, m, m);
-    }
-    this._updateCursorPos();
+  if (w > 0 && h > 0 && this._windowskin) {
+    var skin = this._windowskin;
+    var p = 96;
+    var q = 48;
+    bitmap.blt(
+      skin,
+      p + m,
+      p + m,
+      q - m * 2,
+      q - m * 2,
+      m,
+      m,
+      w - m * 2,
+      h - m * 2
+    );
+    bitmap.blt(skin, p + m, p + 0, q - m * 2, m, m, 0, w - m * 2, m);
+    bitmap.blt(skin, p + m, p + q - m, q - m * 2, m, m, h - m, w - m * 2, m);
+    bitmap.blt(skin, p + 0, p + m, m, q - m * 2, 0, m, m, h - m * 2);
+    bitmap.blt(skin, p + q - m, p + m, m, q - m * 2, w - m, m, m, h - m * 2);
+    bitmap.blt(skin, p + 0, p + 0, m, m, 0, 0, m, m);
+    bitmap.blt(skin, p + q - m, p + 0, m, m, w - m, 0, m, m);
+    bitmap.blt(skin, p + 0, p + q - m, m, m, 0, h - m, m, m);
+    bitmap.blt(skin, p + q - m, p + q - m, m, m, w - m, h - m, m, m);
+  }
+  this._updateCursorPos();
 };
 
 /**
@@ -508,7 +798,14 @@ Window.prototype._refreshCursor = function() {
  * @private
  */
 Window.prototype._refreshContents = function () {
-  this._windowContentsSprite.move(this.padding, this.padding);
+  var pad = this.padding != null ? this.padding : this._padding;
+  if (this._clientArea) {
+    this._clientArea.move(pad, pad);
+  }
+  if (this._contentsBackSprite) {
+    this._contentsBackSprite.move(0, 0);
+  }
+  this._windowContentsSprite.move(0, 0);
 };
 
 /**
@@ -550,6 +847,34 @@ Window.prototype._refreshPauseSign = function () {
   this._windowPauseSignSprite.alpha = 0;
 };
 
+Window.prototype._updateClientArea = function () {
+  if (this._clientArea) {
+    var pad = this.padding != null ? this.padding : this._padding;
+    this._clientArea.move(pad, pad);
+    this._clientArea.visible = this.isOpen();
+  }
+};
+
+Window.prototype._updateFrame = function () {
+  if (this._frameSprite) {
+    this._frameSprite.visible = this.frameVisible;
+  } else if (this._windowFrameSprite) {
+    this._windowFrameSprite.visible = this.frameVisible;
+  }
+};
+
+Window.prototype._updateContentsBack = function () {
+  if (this._contentsBackSprite) {
+    var bitmap = this._contentsBackSprite.bitmap;
+    if (bitmap) {
+      this._contentsBackSprite.setFrame(0, 0, bitmap.width, bitmap.height);
+      this._contentsBackSprite.visible = this.isOpen();
+    } else {
+      this._contentsBackSprite.visible = false;
+    }
+  }
+};
+
 /**
  * @method _updateCursor
  * @private
@@ -565,25 +890,40 @@ Window.prototype._updateCursor = function () {
     }
   }
   this._windowCursorSprite.alpha = cursorOpacity / 255;
-  this._windowCursorSprite.visible = this.isOpen();
+  this._windowCursorSprite.visible = this.isOpen() && this.cursorVisible;
   this._updateCursorPos();
 };
 
-Window.prototype._updateCursorPos = function() {
-    var pad = this._padding;
-    var x = this._cursorRect.x + pad - this.origin.x;
-    var y = this._cursorRect.y + pad - this.origin.y;
-    var w = this._cursorRect.width;
-    var h = this._cursorRect.height;
-    var x2 = Math.max(x, pad);
-    var y2 = Math.max(y, pad);
-    var ox = x2 - x;
-    var oy = y2 - y;
-    var w2 = Math.min(w, this._width - pad - x2);
-    var h2 = Math.min(h, this._height - pad - y2);
-    
-    this._windowCursorSprite.setFrame(ox, oy, w2, h2);
-    this._windowCursorSprite.move(x2, y2);
+Window.prototype._updateCursorPos = function () {
+  var pad = this.padding != null ? this.padding : this._padding;
+  var x = this._cursorRect.x - this.origin.x;
+  var y = this._cursorRect.y - this.origin.y;
+  var w = this._cursorRect.width;
+  var h = this._cursorRect.height;
+  var x2 = Math.max(x, 0);
+  var y2 = Math.max(y, 0);
+  var ox = x2 - x;
+  var oy = y2 - y;
+  var wLimit = Math.max(0, this._width - pad * 2 - x2);
+  var hLimit = Math.max(0, this._height - pad * 2 - y2);
+  var w2 = Math.max(0, Math.min(w, wLimit));
+  var h2 = Math.max(0, Math.min(h, hLimit));
+
+  this._windowCursorSprite.setFrame(ox, oy, w2, h2);
+  this._windowCursorSprite.move(x2, y2);
+};
+
+Window.prototype._makeCursorAlpha = function () {
+  const blinkCount = this._animationCount % 40;
+  const baseAlpha = this.contentsOpacity / 255;
+  if (this.active) {
+    if (blinkCount < 20) {
+      return baseAlpha - blinkCount / 32;
+    } else {
+      return baseAlpha - (40 - blinkCount) / 32;
+    }
+  }
+  return baseAlpha;
 };
 
 /**
@@ -591,8 +931,9 @@ Window.prototype._updateCursorPos = function() {
  * @private
  */
 Window.prototype._updateContents = function () {
-  var w = this._width - this._padding * 2;
-  var h = this._height - this._padding * 2;
+  var pad = this.padding != null ? this.padding : this._padding;
+  var w = this._width - pad * 2;
+  var h = this._height - pad * 2;
   if (w > 0 && h > 0) {
     this._windowContentsSprite.setFrame(this.origin.x, this.origin.y, w, h);
     this._windowContentsSprite.visible = this.isOpen();
@@ -628,6 +969,18 @@ Window.prototype._updatePauseSign = function () {
   }
   sprite.setFrame(sx + x * p, sy + y * p, p, p);
   sprite.visible = this.isOpen();
+};
+
+Window.prototype._updateFilterArea = function () {
+  if (this._clientArea && this._clientArea.filterArea) {
+    var pad = this.padding != null ? this.padding : this._padding;
+    var w = this.width - pad * 2;
+    var h = this.height - pad * 2;
+    this._clientArea.filterArea.x = this.x + pad;
+    this._clientArea.filterArea.y = this.y + pad;
+    this._clientArea.filterArea.width = Math.max(0, w);
+    this._clientArea.filterArea.height = Math.max(0, h);
+  }
 };
 
 // The important members from Pixi.js
