@@ -97,6 +97,8 @@ Curated templates for various game genres:
 - [Bullet Hell (Danmaku)](https://github.com/HashakGik/BulletHell-RMMV)
 - Action RPGs (ARPGs)
 - Card Games
+- New: an **Action Template** lives in `templates/action-template/` with a demo map, action HUD, and controls plugin. Copy the base `template/` folder to a new project and overlay the action template files to get a real-time combat starter kit.
+- GitHub Actions workflow `Build Action Template Artifact` also produces a downloadable bundle with the action template and freshly built `rpg_*.js` CoreScripts inside `js/` so you can run it immediately.
 
 ---
 

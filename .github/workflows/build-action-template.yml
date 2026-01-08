@@ -1,0 +1,42 @@
+name: Build Action Template Artifact
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+jobs:
+  action-template:
+    name: Build action template
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build CoreScripts
+        run: npm run build
+
+      - name: Prepare runnable template bundle
+        shell: pwsh
+        run: |
+          if (Test-Path action-template-bundle) { Remove-Item -Recurse -Force action-template-bundle }
+          New-Item -ItemType Directory -Path action-template-bundle | Out-Null
+          Copy-Item template\* action-template-bundle\ -Recurse
+          Copy-Item templates\action-template\* action-template-bundle\ -Recurse -Force
+          Copy-Item dist\*.js action-template-bundle\js\ -Force
+
+      - name: Upload action template artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-template-ready
+          path: action-template-bundle/**
+          if-no-files-found: error
